@@ -81,6 +81,30 @@ MISSKEY_TOKEN=<botアカウントのAPIトークン>
 
 常駐すると、ローカルTLから語彙を学習し、欲求と生活リズムに従って自発的に発話、メンションに応答し、夜は眠り、睡眠中に記憶を整理し、リアクションから「ウケる投稿」を学習していきます。
 
+### Docker
+
+純Go(cgo不要)なので、マルチステージビルドで最小のdistrolessイメージ(約25MB)になります。
+
+```sh
+cp configs/.env.example .env   # MISSKEY_BASE_URL / MISSKEY_TOKEN を埋める
+docker compose up -d --build    # ビルドして常駐起動
+docker compose logs -f          # ログ確認
+docker compose down             # 停止
+```
+
+- DBは名前付きvolume`growbot-data`(`/data/bot.db`)に永続化されます。
+- 生活リズムはローカル時刻基準のため、`docker-compose.yml`で`TZ=Asia/Tokyo`を設定しています(tzdataはバイナリへ埋め込み済みなので最小イメージでも有効)。
+- `.env`はイメージに焼き込まれず、実行時に読み込まれます(トークンを含むため`.dockerignore`で除外)。
+
+`compose`を使わず直接動かす場合:
+
+```sh
+docker build -t growbot .
+docker run -d --name growbot --restart unless-stopped \
+  --env-file .env -e TZ=Asia/Tokyo -e DB_PATH=/data/bot.db \
+  -v growbot-data:/data growbot
+```
+
 ## 設定
 
 すべて環境変数(または`.env`)で調整します。主なもの:

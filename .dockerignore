@@ -1,0 +1,22 @@
+# VCS / 作業用
+.git
+.github
+.tmp
+
+# 秘密情報(トークンを含む .env は絶対にイメージへ入れない)
+# 雛形は configs/.env.example にある(これらのパターンには一致しない)。
+.env
+.env.*
+
+# ローカルのDB・ビルド成果物(イメージ内で再生成する)
+*.db
+*.db-wal
+*.db-shm
+/growbot
+/dist
+/bin
+*.out
+
+# ドキュメント類(ビルドに不要)
+README.md
+LICENSE
