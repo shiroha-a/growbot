@@ -1,7 +1,9 @@
 # syntax=docker/dockerfile:1
 
 # ---- build stage ----
-FROM golang:1.26.3-bookworm AS build
+# 再現性のためタグに加えダイジェストでピン留めする(タグは可読性のため併記)。
+# 更新時は docker buildx imagetools inspect golang:1.26.3-bookworm でdigestを取得。
+FROM golang:1.26.3-bookworm@sha256:386d475a660466863d9f8c766fec64d7fdad3edac2c6a05020c09534d71edb4b AS build
 WORKDIR /src
 
 # 依存を先に取得してレイヤーキャッシュを効かせる。
@@ -20,7 +22,9 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 RUN mkdir -p /out/data && touch /out/data/.keep && chown -R 65532:65532 /out/data
 
 # ---- runtime stage ----
-FROM gcr.io/distroless/static-debian12:nonroot
+# こちらもダイジェストでピン留め(:nonroot はムーバブルタグのため特に重要)。
+# 更新時は docker buildx imagetools inspect gcr.io/distroless/static-debian12:nonroot で取得。
+FROM gcr.io/distroless/static-debian12:nonroot@sha256:d093aa3e30dbadd3efe1310db061a14da60299baff8450a17fe0ccc514a16639
 # distroless/static には HTTPS 用の ca-certificates が同梱。tzdata はバイナリに埋め込み済み。
 COPY --from=build /out/growbot /growbot
 COPY --from=build --chown=65532:65532 /out/data /data

@@ -22,6 +22,36 @@ func openRepo(t *testing.T) (*SQLRepo, context.Context) {
 	return NewSQLRepo(db), ctx
 }
 
+// TestInferOrder verifies the n-gram order is recovered from a stored prev_key's
+// separator count, and that a fresh database reports no order.
+func TestInferOrder(t *testing.T) {
+	t.Run("fresh database reports no order", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		_, ok, err := repo.InferOrder(ctx)
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("order 2 prev_key has no separator", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "猫", Next: "歩く"}}))
+		order, ok, err := repo.InferOrder(ctx)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, 2, order)
+	})
+
+	t.Run("order 3 prev_key has one separator", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		key := "猫" + sep + "が"
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: key, Next: "歩く"}}))
+		order, ok, err := repo.InferOrder(ctx)
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, 3, order)
+	})
+}
+
 // TestApplyLearnNextsAndStats verifies that ApplyLearn persists tokens and
 // chains, that Nexts returns the observed transitions with their counts, and
 // that Stats reflects the table sizes.
