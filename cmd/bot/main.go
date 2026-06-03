@@ -19,6 +19,10 @@ import (
 	"os/signal"
 	"syscall"
 
+	// 生活リズム(biorhythm)はローカル時刻を使うため、distroless等の最小イメージでも
+	// TZ環境変数が効くようタイムゾーンDBをバイナリへ埋め込む。
+	_ "time/tzdata"
+
 	"growbot/internal/agent"
 	"growbot/internal/config"
 	"growbot/internal/connector/misskey"
