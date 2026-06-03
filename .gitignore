@@ -1,0 +1,25 @@
+# Runtime data (local SQLite + WAL/SHM)
+/bot.db
+*.db
+*.db-wal
+*.db-shm
+
+# Secrets / local env
+.env
+.env.local
+
+# Build artifacts
+/dist/
+/bin/
+/growbot
+
+# Go test/coverage
+*.out
+coverage.*
+
+# Editor/OS
+.DS_Store
+*.swp
+
+# Working directory (design notes, workflow scripts)
+/.tmp/
