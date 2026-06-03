@@ -9,8 +9,11 @@ services:
     restart: unless-stopped
     # MISSKEY_BASE_URL / MISSKEY_TOKEN / MARKOV_ORDER などは .env から読む。
     # .env はリポジトリにコミットされない(秘密トークンを含むため)。
+    # required: false にすることで、.env 未作成でも compose 自体は起動失敗せず、
+    # 必須値が無ければ起動後にアプリが明示的なエラーを出す(分かりにくい起動前失敗を回避)。
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       # 生活リズム(就寝・起床)はローカル時刻基準。日本時間で動かす。
       TZ: Asia/Tokyo

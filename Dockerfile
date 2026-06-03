@@ -29,4 +29,8 @@ COPY --from=build --chown=65532:65532 /out/data /data
 ENV DB_PATH=/data/bot.db
 VOLUME ["/data"]
 
+# distroless:nonroot のデフォルトユーザ(uid 65532)を明示する。
+# (タグ運用が変わっても実行ユーザが意図せず変わらないようにする多層防御)
+USER 65532:65532
+
 ENTRYPOINT ["/growbot"]

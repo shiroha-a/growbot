@@ -94,14 +94,16 @@ docker compose down             # 停止
 
 - DBは名前付きvolume`growbot-data`(`/data/bot.db`)に永続化されます。
 - 生活リズムはローカル時刻基準のため、`docker-compose.yml`で`TZ=Asia/Tokyo`を設定しています(tzdataはバイナリへ埋め込み済みなので最小イメージでも有効)。
-- `.env`はイメージに焼き込まれず、実行時に読み込まれます(トークンを含むため`.dockerignore`で除外)。
+- `.env`はイメージに焼き込まれず、実行時に読み込まれます(トークンを含むため`.dockerignore`で除外)。`.env`未作成でも`compose`自体は起動し、必須値が無ければアプリが明示エラーを出します。
+- 既存の`bot.db`をDockerへ移行する場合は、ホストのDBを直接bind mountせず、名前付きvolumeへコピーしてください(bind mount経由だと読み出しが不正になる場合があります)。
 
-`compose`を使わず直接動かす場合:
+`compose`を使わず直接動かす場合(composeと同等の堅牢化フラグを付ける):
 
 ```sh
 docker build -t growbot .
 docker run -d --name growbot --restart unless-stopped \
-  --env-file .env -e TZ=Asia/Tokyo -e DB_PATH=/data/bot.db \
+  --security-opt no-new-privileges=true --cap-drop ALL \
+  --env-file .env -e TZ=Asia/Tokyo \
   -v growbot-data:/data growbot
 ```
 
