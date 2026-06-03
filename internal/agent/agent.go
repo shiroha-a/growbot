@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode"
 
 	"golang.org/x/sync/errgroup"
 
@@ -281,6 +282,45 @@ func timelineChannel(name string) string {
 	}
 }
 
+// japaneseRatio returns the fraction of Japanese characters among the non-space
+// runes of s (0 for an empty or all-space string). It is used to skip learning
+// from predominantly non-Japanese notes on busy, multilingual timelines.
+func japaneseRatio(s string) float64 {
+	var jp, total int
+	for _, r := range s {
+		if unicode.IsSpace(r) {
+			continue
+		}
+		total++
+		if isJapanese(r) {
+			jp++
+		}
+	}
+	if total == 0 {
+		return 0
+	}
+	return float64(jp) / float64(total)
+}
+
+// isJapanese reports whether r is a hiragana, katakana, or kanji character
+// (including the long-vowel mark and halfwidth katakana).
+func isJapanese(r rune) bool {
+	switch {
+	case r >= 0x3040 && r <= 0x309F: // hiragana
+		return true
+	case r >= 0x30A0 && r <= 0x30FF: // katakana (includes ー, U+30FC)
+		return true
+	case r >= 0x4E00 && r <= 0x9FFF: // CJK unified ideographs (kanji)
+		return true
+	case r >= 0x3400 && r <= 0x4DBF: // CJK extension A
+		return true
+	case r >= 0xFF66 && r <= 0xFF9D: // halfwidth katakana
+		return true
+	default:
+		return false
+	}
+}
+
 // streamLoop subscribes to the configured learn timeline and re-subscribes with
 // a capped exponential backoff whenever the stream drops, until ctx is canceled.
 func (a *Agent) streamLoop(ctx context.Context) {
@@ -495,6 +535,11 @@ func (a *Agent) learn(ctx context.Context, note misskey.StreamNote) {
 	text := strings.TrimSpace(note.Text)
 	// NGワード/記号過多のノートは語彙汚染を避けるため学習対象から除外する。
 	if !a.guard.Allowed(text) {
+		return
+	}
+	// グローバルTL等は多言語のため、日本語比率が低いノートは学習しない。
+	// 日本語IPA辞書では非日本語文が断片化して語彙を汚すのを防ぐ。
+	if a.cfg.LearnMinJPRatio > 0 && japaneseRatio(text) < a.cfg.LearnMinJPRatio {
 		return
 	}
 	tokens := a.tok.Tokenize(text)

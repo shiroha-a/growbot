@@ -43,6 +43,11 @@ type Config struct {
 	// timeline is almost empty, so "global" (federated public notes) gives the
 	// bot far more material to learn from.
 	LearnTimeline string `env:"LEARN_TIMELINE" envDefault:"local"`
+	// LearnMinJPRatio skips learning from notes whose ratio of Japanese
+	// characters is below this threshold, in [0,1]. It keeps the (Japanese)
+	// model clean when learning from busy, multilingual timelines such as the
+	// global timeline. 0 disables the filter.
+	LearnMinJPRatio float64 `env:"LEARN_MIN_JP_RATIO" envDefault:"0.3"`
 	// AutonomousPost toggles self-initiated posting.
 	AutonomousPost bool `env:"AUTONOMOUS_POST" envDefault:"true"`
 
@@ -172,6 +177,9 @@ func (c *Config) validate() error {
 	case "local", "global", "hybrid", "home":
 	default:
 		return fmt.Errorf("LEARN_TIMELINE must be one of local|global|hybrid|home, got %q", c.LearnTimeline)
+	}
+	if c.LearnMinJPRatio < 0 || c.LearnMinJPRatio > 1 {
+		return fmt.Errorf("LEARN_MIN_JP_RATIO must be in [0,1], got %v", c.LearnMinJPRatio)
 	}
 	// 最小長が最大長を超えると自然な文末(EOS)が永遠に成立しないため検証する。
 	if c.MinSentenceTokens > c.MaxSentenceTokens {

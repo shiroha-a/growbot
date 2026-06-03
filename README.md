@@ -134,6 +134,7 @@ journalctl -u growbot -f                # ログ確認
 | `SLEEP_START_HOUR` / `SLEEP_END_HOUR` | `1` / `7` | 睡眠時間帯 |
 | `URGE_THRESHOLD` | `0.55` | 発話に必要な衝動の閾値 |
 | `LEARN_TIMELINE` | `local` | 学習元TL(`local`/`global`/`hybrid`/`home`)。おひとり様は`global`推奨 |
+| `LEARN_MIN_JP_RATIO` | `0.3` | 学習する最低日本語文字比率(多言語TL対策、`0`で無効) |
 | `MARKOV_ORDER` | `2` | N-gram階数 |
 | `MEMORY_DECAY` / `MEMORY_PRUNE_BELOW` | `0.9` / `0.05` | 忘却・剪定 |
 | `DREAM_CHANCE` | `0.3` | 起床時に夢を投稿する確率 |

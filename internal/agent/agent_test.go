@@ -24,6 +24,28 @@ func TestTimelineChannel(t *testing.T) {
 	}
 }
 
+// TestJapaneseRatio checks the Japanese-character ratio used to gate learning.
+func TestJapaneseRatio(t *testing.T) {
+	cases := []struct {
+		name     string
+		in       string
+		min, max float64
+	}{
+		{"pure Japanese", "今日はいい天気ですね", 0.99, 1.0},
+		{"katakana", "コンニチハ", 0.99, 1.0},
+		{"English only", "hello world", 0.0, 0.0},
+		{"empty", "", 0.0, 0.0},
+		{"mixed mostly Japanese", "今日はgood", 0.4, 0.7},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			r := japaneseRatio(tt.in)
+			require.GreaterOrEqual(t, r, tt.min)
+			require.LessOrEqual(t, r, tt.max)
+		})
+	}
+}
+
 // selfWith builds a Self whose four drives are all set to urge (so Urge() == urge)
 // and with the given energy.
 func selfWith(urge, energy float64) *psyche.Self {
