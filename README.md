@@ -95,7 +95,8 @@ docker compose down             # 停止
 - DBは名前付きvolume`growbot-data`(`/data/bot.db`)に永続化されます。
 - 生活リズムはローカル時刻基準のため、`docker-compose.yml`で`TZ=Asia/Tokyo`を設定しています(tzdataはバイナリへ埋め込み済みなので最小イメージでも有効)。
 - `.env`はイメージに焼き込まれず、実行時に読み込まれます(トークンを含むため`.dockerignore`で除外)。`.env`未作成でも`compose`自体は起動し、必須値が無ければアプリが明示エラーを出します。
-- 既存の`bot.db`をDockerへ移行する場合は、ホストのDBを直接bind mountせず、名前付きvolumeへコピーしてください(bind mount経由だと読み出しが不正になる場合があります)。
+- `MARKOV_ORDER`はDBを構築したときの値と一致させてください。異なる値で起動すると警告を出したうえでDB側の次数を採用します(生成開始の文脈が既存データと一致せず空文になるのを防ぐため)。composeは`.env`の値を使うため通常は自動的に一致します。
+- リソース上限(`mem_limit: 512m`/`pids_limit: 256`)を設定済みで、暴走時に母艦を保護します。
 
 `compose`を使わず直接動かす場合(composeと同等の堅牢化フラグを付ける):
 
@@ -103,8 +104,21 @@ docker compose down             # 停止
 docker build -t growbot .
 docker run -d --name growbot --restart unless-stopped \
   --security-opt no-new-privileges=true --cap-drop ALL \
+  --memory 512m --pids-limit 256 \
   --env-file .env -e TZ=Asia/Tokyo \
   -v growbot-data:/data growbot
+```
+
+#### systemdで常駐(起動時に自動起動)
+
+`docker compose`をsystemdサービスとして管理すると、サーバ再起動後も自動で立ち上がります。ユニット例は`deploy/growbot.service`にあります。
+
+```sh
+# リポジトリ(docker-compose.yml と .env を含む)を /opt/growbot に配置してから:
+sudo cp deploy/growbot.service /etc/systemd/system/growbot.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now growbot     # 起動 + 自動起動を有効化
+journalctl -u growbot -f                # ログ確認
 ```
 
 ## 設定

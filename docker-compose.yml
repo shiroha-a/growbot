@@ -33,6 +33,10 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # 暴走時に母艦を保護するリソース上限(辞書ロード込みで通常100〜250MB程度)。
+    # 小型機(Raspberry Pi等)での常駐も想定し、余裕を見て512MiBとする。
+    mem_limit: 512m
+    pids_limit: 256
 
 volumes:
   growbot-data:

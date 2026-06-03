@@ -1,0 +1,32 @@
+# systemd unit to run growbot via docker compose as a persistent service.
+#
+# Install:
+#   1. Place the repository (with docker-compose.yml and a filled-in .env) at
+#      /opt/growbot  (or edit WorkingDirectory below to match your path).
+#   2. sudo cp deploy/growbot.service /etc/systemd/system/growbot.service
+#   3. sudo systemctl daemon-reload
+#   4. sudo systemctl enable --now growbot
+#
+# Logs:   journalctl -u growbot   /   docker compose -f /opt/growbot/docker-compose.yml logs -f
+# Update: git pull && sudo systemctl restart growbot   (Restart re-runs `compose up -d --build`)
+
+[Unit]
+Description=growbot (self-growing, fully-local Misskey bot)
+Requires=docker.service
+After=docker.service network-online.target
+Wants=network-online.target
+
+[Service]
+# oneshot + RemainAfterExit: compose を -d で起動し、コンテナ側の
+# restart: unless-stopped がクラッシュ復帰を担う。systemd はスタックの
+# 起動/停止のみを管理する。
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/opt/growbot
+ExecStart=/usr/bin/docker compose up -d --build
+ExecStop=/usr/bin/docker compose down
+ExecReload=/usr/bin/docker compose up -d --build
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

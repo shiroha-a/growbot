@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // SQLRepo is a SQLite-backed implementation of Repo. It persists vocabulary in
@@ -22,6 +23,26 @@ func NewSQLRepo(db *sql.DB) *SQLRepo {
 
 // Compile-time assertion that SQLRepo satisfies the Repo interface.
 var _ Repo = (*SQLRepo)(nil)
+
+// InferOrder reports the n-gram order the stored chains were built at.
+//
+// A prev_key holds Order-1 context surfaces joined by sep, i.e. Order-2
+// separators, so Order = separators + 2. The boolean is false when no chains
+// exist yet (a fresh database), in which case the caller should fall back to
+// the configured order. This lets the daemon stay consistent with its own data
+// even if MARKOV_ORDER is later changed, instead of silently generating empty
+// output because the start context no longer matches any stored prev_key.
+func (r *SQLRepo) InferOrder(ctx context.Context) (int, bool, error) {
+	var prevKey string
+	err := r.db.QueryRowContext(ctx, `SELECT prev_key FROM chains LIMIT 1;`).Scan(&prevKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, fmt.Errorf("markov: infer order: %w", err)
+	}
+	return strings.Count(prevKey, sep) + 2, true, nil
+}
 
 // ApplyLearn applies a batch of token and chain increments atomically.
 //

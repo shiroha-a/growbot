@@ -68,10 +68,23 @@ func run() error {
 		return fmt.Errorf("init morph: %w", err)
 	}
 
+	// マルコフ次数はDB構築時の値と一致していなければならない。不一致だと生成開始の
+	// 文脈キーが既存のprev_keyと一致せず、エラーも出さず空文を生成し続けてしまう。
+	// 既存データがある場合はDB側の次数を採用し、設定との差異は警告で知らせる。
+	repo := markov.NewSQLRepo(db)
+	order := cfg.MarkovOrder
+	if dbOrder, ok, err := repo.InferOrder(ctx); err != nil {
+		return fmt.Errorf("infer markov order: %w", err)
+	} else if ok && dbOrder != order {
+		logger.Warn("configured MARKOV_ORDER does not match the existing database; using the database's order to keep generation consistent",
+			"configured", order, "database", dbOrder)
+		order = dbOrder
+	}
+
 	model := markov.NewModel(
-		markov.NewSQLRepo(db),
+		repo,
 		markov.Options{
-			Order:     cfg.MarkovOrder,
+			Order:     order,
 			MinTokens: cfg.MinSentenceTokens,
 			MaxTokens: cfg.MaxSentenceTokens,
 		},

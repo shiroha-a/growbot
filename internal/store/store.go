@@ -9,6 +9,8 @@ import (
 	"database/sql"
 	"fmt"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 
 	// 純Goのsqliteドライバ。cgo不要でローカル完結のため採用。
@@ -21,6 +23,14 @@ import (
 // On any failure after the handle is created, the database is closed before
 // the error is returned so callers never leak an open handle.
 func Open(ctx context.Context, path string) (*sql.DB, error) {
+	// DBファイルの親ディレクトリを先に作る。コンテナでvolumeをマウントした場合は
+	// 既存だが、bind mountや初回起動で親が無いケースでも安全に作成できるようにする。
+	if dir := filepath.Dir(path); dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return nil, fmt.Errorf("store: create db dir %q: %w", dir, err)
+		}
+	}
+
 	// PRAGMAは接続ごとの設定で、db.Execだとプールのうち1接続にしか効かない。
 	// プールが新たに開く接続すべてに適用されるよう、DSNの_pragmaクエリに載せる。
 	// _txlock=immediate により書き込みトランザクションが開始時に書き込みロックを
