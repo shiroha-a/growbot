@@ -170,6 +170,9 @@ type Agent struct {
 	// wasAsleep tracks the previous tick's sleep state to detect transitions.
 	wasAsleep bool
 
+	// learnChannel is the Misskey streaming timeline the bot learns from,
+	// derived from cfg.LearnTimeline.
+	learnChannel string
 	// learnCh decouples websocket ingestion from the (DB-bound) learning step.
 	learnCh chan misskey.StreamNote
 	// mentionCh hands mentions to the life loop so mention handling and ticks
@@ -205,6 +208,7 @@ func New(cfg *config.Config, logger *slog.Logger, client *misskey.Client, tok *m
 		limiter:      safety.NewRateLimiter(cfg.MaxPostsPerHour, time.Hour),
 		clock:        biorhythm.Clock{SleepStartHour: cfg.SleepStartHour, SleepEndHour: cfg.SleepEndHour},
 		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		learnChannel: timelineChannel(cfg.LearnTimeline),
 		learnCh:      make(chan misskey.StreamNote, learnQueueSize),
 		mentionCh:    make(chan misskey.StreamNote, mentionQueueSize),
 		seenMentions: make(map[string]struct{}, seenMentionsCap),
@@ -249,6 +253,7 @@ func (a *Agent) Run(ctx context.Context) error {
 		"post_min_interval", a.cfg.PostInterval.String(),
 		"urge_threshold", a.cfg.UrgeThreshold,
 		"autonomous_post", a.cfg.AutonomousPost,
+		"learn_timeline", a.learnChannel,
 	)
 
 	g, gctx := errgroup.WithContext(ctx)
@@ -260,8 +265,24 @@ func (a *Agent) Run(ctx context.Context) error {
 	return g.Wait()
 }
 
-// streamLoop subscribes to the local timeline and re-subscribes with a capped
-// exponential backoff whenever the stream drops, until ctx is canceled.
+// timelineChannel maps a LEARN_TIMELINE config value to its Misskey streaming
+// channel name. The value is validated by config, so an unknown value falls
+// back to the local timeline rather than failing.
+func timelineChannel(name string) string {
+	switch name {
+	case "global":
+		return "globalTimeline"
+	case "hybrid":
+		return "hybridTimeline"
+	case "home":
+		return "homeTimeline"
+	default: // "local"
+		return "localTimeline"
+	}
+}
+
+// streamLoop subscribes to the configured learn timeline and re-subscribes with
+// a capped exponential backoff whenever the stream drops, until ctx is canceled.
 func (a *Agent) streamLoop(ctx context.Context) {
 	backoff := reconnectBackoffBase
 	for {
@@ -269,7 +290,7 @@ func (a *Agent) streamLoop(ctx context.Context) {
 			return
 		}
 		start := time.Now()
-		err := a.client.StreamLocalTimeline(ctx, a.enqueueNote)
+		err := a.client.StreamTimeline(ctx, a.learnChannel, a.enqueueNote)
 		if ctx.Err() != nil {
 			return
 		}

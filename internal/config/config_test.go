@@ -21,6 +21,7 @@ var envKeys = []string{
 	"MIN_SENTENCE_TOKENS",
 	"MAX_SENTENCE_TOKENS",
 	"LEARN_MIN_TOKENS",
+	"LEARN_TIMELINE",
 	"AUTONOMOUS_POST",
 	"TICK_INTERVAL",
 	"SLEEP_START_HOUR",
@@ -114,6 +115,36 @@ func TestLoadAllowsEmptyBaseURL(t *testing.T) {
 func TestLoadRejectsInvalidBaseURLScheme(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("MISSKEY_BASE_URL", "ftp://misskey.example.com")
+
+	cfg, err := Load()
+	require.Error(t, err)
+	require.Nil(t, cfg)
+}
+
+// TestLoadAcceptsLearnTimeline verifies a valid LEARN_TIMELINE value is parsed.
+func TestLoadAcceptsLearnTimeline(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("LEARN_TIMELINE", "global")
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.NotNil(t, cfg)
+	require.Equal(t, "global", cfg.LearnTimeline)
+}
+
+// TestLoadDefaultsLearnTimeline verifies LEARN_TIMELINE defaults to local.
+func TestLoadDefaultsLearnTimeline(t *testing.T) {
+	clearEnv(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.Equal(t, "local", cfg.LearnTimeline)
+}
+
+// TestLoadRejectsInvalidLearnTimeline verifies an unknown timeline is rejected.
+func TestLoadRejectsInvalidLearnTimeline(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("LEARN_TIMELINE", "firehose")
 
 	cfg, err := Load()
 	require.Error(t, err)

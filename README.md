@@ -133,12 +133,15 @@ journalctl -u growbot -f                # ログ確認
 | `TICK_INTERVAL` | `1m` | 内部状態の更新間隔 |
 | `SLEEP_START_HOUR` / `SLEEP_END_HOUR` | `1` / `7` | 睡眠時間帯 |
 | `URGE_THRESHOLD` | `0.55` | 発話に必要な衝動の閾値 |
+| `LEARN_TIMELINE` | `local` | 学習元TL(`local`/`global`/`hybrid`/`home`)。おひとり様は`global`推奨 |
 | `MARKOV_ORDER` | `2` | N-gram階数 |
 | `MEMORY_DECAY` / `MEMORY_PRUNE_BELOW` | `0.9` / `0.05` | 忘却・剪定 |
 | `DREAM_CHANCE` | `0.3` | 起床時に夢を投稿する確率 |
 | `MENTION_REPLY` / `AFFINITY_GAIN` | `true` / `0.1` | メンション応答・親密度 |
 | `ENGAGEMENT_POLL_INTERVAL` / `REACTION_DELAY` | `5m` / `30m` | 反応回収 |
 | `NG_WORDS` / `MAX_SYMBOL_RATIO` / `MAX_POSTS_PER_HOUR` | (空) / `0.5` / `12` | 安全・レート制限 |
+
+`LEARN_TIMELINE=global`(または`hybrid`)は未キュレーションかつ多言語の連合TLから学習するため、不適切表現の学習・出力を抑えたい場合は`NG_WORDS`の整備を推奨します。
 
 全項目は`configs/.env.example`を参照してください。
 

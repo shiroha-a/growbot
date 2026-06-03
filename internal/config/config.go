@@ -38,6 +38,11 @@ type Config struct {
 	MaxSentenceTokens int `env:"MAX_SENTENCE_TOKENS" envDefault:"40"`
 	// LearnMinTokens skips learning from notes shorter than this many tokens.
 	LearnMinTokens int `env:"LEARN_MIN_TOKENS" envDefault:"2"`
+	// LearnTimeline selects which Misskey timeline the bot learns from:
+	// local | global | hybrid | home. On a near-single-user instance the local
+	// timeline is almost empty, so "global" (federated public notes) gives the
+	// bot far more material to learn from.
+	LearnTimeline string `env:"LEARN_TIMELINE" envDefault:"local"`
 	// AutonomousPost toggles self-initiated posting.
 	AutonomousPost bool `env:"AUTONOMOUS_POST" envDefault:"true"`
 
@@ -162,6 +167,11 @@ func (c *Config) validate() error {
 	}
 	if c.LearnMinTokens < 1 {
 		return fmt.Errorf("LEARN_MIN_TOKENS must be >= 1, got %d", c.LearnMinTokens)
+	}
+	switch c.LearnTimeline {
+	case "local", "global", "hybrid", "home":
+	default:
+		return fmt.Errorf("LEARN_TIMELINE must be one of local|global|hybrid|home, got %q", c.LearnTimeline)
 	}
 	// 最小長が最大長を超えると自然な文末(EOS)が永遠に成立しないため検証する。
 	if c.MinSentenceTokens > c.MaxSentenceTokens {

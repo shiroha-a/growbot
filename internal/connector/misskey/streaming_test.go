@@ -152,9 +152,9 @@ func TestMeEmptyID(t *testing.T) {
 	require.Error(t, err)
 }
 
-// TestStreamLocalTimelineRoundtrip exercises the full dial/connect/read loop
+// TestStreamTimelineRoundtrip exercises the full dial/connect/read loop
 // against a local httptest WebSocket server that echoes a single note frame.
-func TestStreamLocalTimelineRoundtrip(t *testing.T) {
+func TestStreamTimelineRoundtrip(t *testing.T) {
 	gotConnect := make(chan map[string]any, 1)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -198,7 +198,7 @@ func TestStreamLocalTimelineRoundtrip(t *testing.T) {
 	received := make(chan StreamNote, 1)
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- c.StreamLocalTimeline(ctx, func(n StreamNote) {
+		errCh <- c.StreamTimeline(ctx, "localTimeline", func(n StreamNote) {
 			select {
 			case received <- n:
 			default:
@@ -223,7 +223,7 @@ func TestStreamLocalTimelineRoundtrip(t *testing.T) {
 	case err := <-errCh:
 		require.NoError(t, err)
 	case <-time.After(2 * time.Second):
-		t.Fatal("StreamLocalTimeline did not return after cancel")
+		t.Fatal("StreamTimeline did not return after cancel")
 	}
 
 	// connectフレームの内容を検証する。
@@ -233,16 +233,16 @@ func TestStreamLocalTimelineRoundtrip(t *testing.T) {
 		body, ok := connect["body"].(map[string]any)
 		require.True(t, ok)
 		require.Equal(t, "localTimeline", body["channel"])
-		require.Equal(t, "growbot-local", body["id"])
+		require.Equal(t, "growbot-localTimeline", body["id"])
 	default:
 		t.Fatal("server did not capture a connect frame")
 	}
 }
 
-func TestStreamLocalTimelineBadURL(t *testing.T) {
+func TestStreamTimelineBadURL(t *testing.T) {
 	// 不正なbaseURLはダイヤル前にエラーになる。
 	c := NewClient("ftp://example.com", "tok", nil)
-	err := c.StreamLocalTimeline(context.Background(), nil)
+	err := c.StreamTimeline(context.Background(), "localTimeline", nil)
 	require.Error(t, err)
 	require.True(t, strings.Contains(err.Error(), "scheme"))
 }
@@ -264,7 +264,7 @@ func TestStreamDialErrorRedactsToken(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	err := c.StreamLocalTimeline(ctx, nil)
+	err := c.StreamTimeline(ctx, "localTimeline", nil)
 	require.Error(t, err)
 	require.NotContains(t, err.Error(), token)
 }

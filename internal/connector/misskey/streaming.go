@@ -268,10 +268,12 @@ func (c *Client) streamChannel(ctx context.Context, channel, channelID string, o
 	}
 }
 
-// StreamLocalTimeline subscribes to the local timeline and invokes onNote for
-// each posted note until ctx is canceled.
-func (c *Client) StreamLocalTimeline(ctx context.Context, onNote func(StreamNote)) error {
-	return c.streamChannel(ctx, "localTimeline", "growbot-local", func(eventType string, note StreamNote) {
+// StreamTimeline subscribes to the given timeline channel and invokes onNote for
+// each posted note until ctx is canceled. The channel is a Misskey streaming
+// timeline name such as "localTimeline", "globalTimeline", "hybridTimeline" or
+// "homeTimeline".
+func (c *Client) StreamTimeline(ctx context.Context, channel string, onNote func(StreamNote)) error {
+	return c.streamChannel(ctx, channel, "growbot-"+channel, func(eventType string, note StreamNote) {
 		if eventType == "note" && onNote != nil {
 			onNote(note)
 		}
