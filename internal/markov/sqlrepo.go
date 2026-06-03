@@ -32,6 +32,11 @@ var _ Repo = (*SQLRepo)(nil)
 // the configured order. This lets the daemon stay consistent with its own data
 // even if MARKOV_ORDER is later changed, instead of silently generating empty
 // output because the start context no longer matches any stored prev_key.
+//
+// It assumes the database was built at a single order and that surfaces never
+// contain sep. The whole markov package already relies on that invariant when
+// joining context surfaces into a prev_key (sep is the non-printable \x1f unit
+// separator, which does not occur in morphological surfaces).
 func (r *SQLRepo) InferOrder(ctx context.Context) (int, bool, error) {
 	var prevKey string
 	err := r.db.QueryRowContext(ctx, `SELECT prev_key FROM chains LIMIT 1;`).Scan(&prevKey)

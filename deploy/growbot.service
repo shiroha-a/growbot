@@ -20,6 +20,8 @@ Wants=network-online.target
 # oneshot + RemainAfterExit: compose を -d で起動し、コンテナ側の
 # restart: unless-stopped がクラッシュ復帰を担う。systemd はスタックの
 # 起動/停止のみを管理する。
+# 注意: この方式では systemd からはスタックが常に active に見えるため、
+# コンテナ自体のクラッシュループは docker compose ps / logs で確認すること。
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=/opt/growbot
