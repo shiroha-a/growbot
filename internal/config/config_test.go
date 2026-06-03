@@ -22,6 +22,7 @@ var envKeys = []string{
 	"MAX_SENTENCE_TOKENS",
 	"LEARN_MIN_TOKENS",
 	"LEARN_TIMELINE",
+	"LEARN_MIN_JP_RATIO",
 	"AUTONOMOUS_POST",
 	"TICK_INTERVAL",
 	"SLEEP_START_HOUR",
@@ -145,6 +146,25 @@ func TestLoadDefaultsLearnTimeline(t *testing.T) {
 func TestLoadRejectsInvalidLearnTimeline(t *testing.T) {
 	clearEnv(t)
 	t.Setenv("LEARN_TIMELINE", "firehose")
+
+	cfg, err := Load()
+	require.Error(t, err)
+	require.Nil(t, cfg)
+}
+
+// TestLoadDefaultsLearnMinJPRatio verifies the Japanese-ratio threshold default.
+func TestLoadDefaultsLearnMinJPRatio(t *testing.T) {
+	clearEnv(t)
+
+	cfg, err := Load()
+	require.NoError(t, err)
+	require.InDelta(t, 0.3, cfg.LearnMinJPRatio, 1e-9)
+}
+
+// TestLoadRejectsOutOfRangeLearnMinJPRatio verifies the [0,1] bound is enforced.
+func TestLoadRejectsOutOfRangeLearnMinJPRatio(t *testing.T) {
+	clearEnv(t)
+	t.Setenv("LEARN_MIN_JP_RATIO", "1.5")
 
 	cfg, err := Load()
 	require.Error(t, err)
