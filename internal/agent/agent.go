@@ -303,9 +303,12 @@ func japaneseRatio(s string) float64 {
 }
 
 // isJapanese reports whether r is a hiragana, katakana, or kanji character
-// (including the long-vowel mark and halfwidth katakana).
+// (including the long-vowel mark, halfwidth katakana, the iteration mark 々 and
+// Japanese punctuation such as 、。「」).
 func isJapanese(r rune) bool {
 	switch {
+	case r >= 0x3000 && r <= 0x303F: // CJK symbols & punctuation (、。「」々 etc.)
+		return true
 	case r >= 0x3040 && r <= 0x309F: // hiragana
 		return true
 	case r >= 0x30A0 && r <= 0x30FF: // katakana (includes ー, U+30FC)

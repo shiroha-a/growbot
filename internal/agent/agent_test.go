@@ -33,6 +33,7 @@ func TestJapaneseRatio(t *testing.T) {
 	}{
 		{"pure Japanese", "今日はいい天気ですね", 0.99, 1.0},
 		{"katakana", "コンニチハ", 0.99, 1.0},
+		{"iteration mark and punctuation", "人々、様々。", 0.99, 1.0},
 		{"English only", "hello world", 0.0, 0.0},
 		{"empty", "", 0.0, 0.0},
 		{"mixed mostly Japanese", "今日はgood", 0.4, 0.7},
