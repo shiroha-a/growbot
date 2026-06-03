@@ -141,6 +141,8 @@ journalctl -u growbot -f                # ログ確認
 | `ENGAGEMENT_POLL_INTERVAL` / `REACTION_DELAY` | `5m` / `30m` | 反応回収 |
 | `NG_WORDS` / `MAX_SYMBOL_RATIO` / `MAX_POSTS_PER_HOUR` | (空) / `0.5` / `12` | 安全・レート制限 |
 
+`LEARN_TIMELINE=global`(または`hybrid`)は未キュレーションかつ多言語の連合TLから学習するため、不適切表現の学習・出力を抑えたい場合は`NG_WORDS`の整備を推奨します。
+
 全項目は`configs/.env.example`を参照してください。
 
 ## テスト
