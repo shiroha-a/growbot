@@ -10,6 +10,20 @@ import (
 	"growbot/internal/psyche"
 )
 
+// TestTimelineChannel maps LEARN_TIMELINE values to Misskey channel names.
+func TestTimelineChannel(t *testing.T) {
+	cases := map[string]string{
+		"local":   "localTimeline",
+		"global":  "globalTimeline",
+		"hybrid":  "hybridTimeline",
+		"home":    "homeTimeline",
+		"unknown": "localTimeline", // validated upstream; an unknown value falls back to local
+	}
+	for in, want := range cases {
+		require.Equal(t, want, timelineChannel(in), "timelineChannel(%q)", in)
+	}
+}
+
 // selfWith builds a Self whose four drives are all set to urge (so Urge() == urge)
 // and with the given energy.
 func selfWith(urge, energy float64) *psyche.Self {
