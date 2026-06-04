@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math/rand"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -324,6 +325,39 @@ func isJapanese(r rune) bool {
 	}
 }
 
+var (
+	// URLはMisskey(MFM)に合わせ大小無視(?i)。文字クラスはASCIIのURL文字に角括弧
+	// (IPv6リテラル)を加え、末尾は * とすることでホストが非ASCII(IDN)でも少なくとも
+	// スキームを確実に除去する。後続の日本語本文は非ASCIIで止まるため巻き込まない。
+	urlRe = regexp.MustCompile(`(?i)https?://[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]*`)
+	// メンションは境界文字(行頭/非単語文字)を1文字保持して @user / @user@host を除去。
+	// 境界からアンダースコアを外し、MFMの直前判定 /[a-z0-9]$/i に一致させる(_@bob を除去)。
+	mentionRe = regexp.MustCompile(`(^|[^0-9A-Za-z])@[A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?`)
+	// Misskeyのカスタム絵文字ショートコード :name: を除去。
+	emojiRe = regexp.MustCompile(`:[A-Za-z0-9_+-]+:`)
+	// 除去後に残る連続空白を1つに畳む。
+	spaceRe = regexp.MustCompile(`[ \t]{2,}`)
+)
+
+// sanitizeText removes fediverse markup that must never enter the model or a
+// post: URLs, @mentions (which would notify remote users), and custom-emoji
+// shortcodes. It is applied both before learning (to keep the vocabulary clean)
+// and before posting (to neutralize anything already learned).
+func sanitizeText(s string) string {
+	s = urlRe.ReplaceAllString(s, "")
+	// 連鎖したメンション(@a@host@b 等)も取り切るため安定するまで数回適用する。
+	for i := 0; i < 3; i++ {
+		out := mentionRe.ReplaceAllString(s, "$1")
+		if out == s {
+			break
+		}
+		s = out
+	}
+	s = emojiRe.ReplaceAllString(s, "")
+	s = spaceRe.ReplaceAllString(s, " ")
+	return strings.TrimSpace(s)
+}
+
 // streamLoop subscribes to the configured learn timeline and re-subscribes with
 // a capped exponential backoff whenever the stream drops, until ctx is canceled.
 func (a *Agent) streamLoop(ctx context.Context) {
@@ -497,6 +531,11 @@ func (a *Agent) handleMention(ctx context.Context, note misskey.StreamNote) {
 	// 装飾前の reply を台帳へ記録する。
 	mood := a.self.Mood.Nudge(rel.Affinity*affinityToneScale, 0)
 	surface := voice.Decorate(reply, mood, a.rng)
+	// 既学習分の防御: 投稿直前にメンション/URL/絵文字ショートコードを除去する。
+	surface = sanitizeText(surface)
+	if strings.TrimSpace(surface) == "" {
+		return
+	}
 
 	id, err := a.client.CreateReply(ctx, surface, note.ID)
 	if err != nil {
@@ -536,6 +575,12 @@ func (a *Agent) learnWorker(ctx context.Context) {
 // than the configured minimum.
 func (a *Agent) learn(ctx context.Context, note misskey.StreamNote) {
 	text := strings.TrimSpace(note.Text)
+	// メンション/URL/絵文字ショートコード等のマークアップは学習しない。語彙汚染と、
+	// 生成投稿経由でのリモートユーザーへの不要な通知・リンク露出を根本から防ぐ。
+	text = sanitizeText(text)
+	if strings.TrimSpace(text) == "" {
+		return
+	}
 	// NGワード/記号過多のノートは語彙汚染を避けるため学習対象から除外する。
 	if !a.guard.Allowed(text) {
 		return
@@ -681,6 +726,14 @@ func (a *Agent) act(ctx context.Context, now time.Time) {
 	// 投稿には口癖と気分のトーンを付与する。
 	surface := habit.Apply(text, a.catchphrase, a.cfg.CatchphraseChance, a.rng)
 	surface = voice.Decorate(surface, a.self.Mood, a.rng)
+	// 既学習分の防御: 投稿直前にメンション/URL/絵文字ショートコードを除去する。
+	surface = sanitizeText(surface)
+	if strings.TrimSpace(surface) == "" {
+		// サニタイズで本文が消えた場合は空投稿を避け、クールダウンだけ置く。
+		a.lastPost = now
+		a.logger.Debug("nothing to post after sanitize")
+		return
+	}
 
 	id, err := a.client.CreateNote(ctx, surface)
 	if err != nil {
@@ -947,6 +1000,11 @@ func (a *Agent) maybeDream(ctx context.Context, now time.Time) {
 		return
 	}
 	surface := voice.Decorate(text, a.self.Mood, a.rng)
+	// 既学習分の防御: 投稿直前にメンション/URL/絵文字ショートコードを除去する。
+	surface = sanitizeText(surface)
+	if strings.TrimSpace(surface) == "" {
+		return
+	}
 	id, err := a.client.CreateNote(ctx, surface)
 	if err != nil {
 		a.logger.Warn("dream post failed", "err", err)
