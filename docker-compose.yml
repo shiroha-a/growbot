@@ -1,0 +1,42 @@
+name: growbot
+
+services:
+  growbot:
+    build: .
+    image: growbot:latest
+    container_name: growbot
+    # クラッシュや再起動後も自動で立ち上がるように。
+    restart: unless-stopped
+    # MISSKEY_BASE_URL / MISSKEY_TOKEN / MARKOV_ORDER などは .env から読む。
+    # .env はリポジトリにコミットされない(秘密トークンを含むため)。
+    # required: false にすることで、.env 未作成でも compose 自体は起動失敗せず、
+    # 必須値が無ければ起動後にアプリが明示的なエラーを出す(分かりにくい起動前失敗を回避)。
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      # 生活リズム(就寝・起床)はローカル時刻基準。日本時間で動かす。
+      TZ: Asia/Tokyo
+      # DB は名前付きvolume上に置いて永続化する。
+      DB_PATH: /data/bot.db
+    volumes:
+      - growbot-data:/data
+    # 堅牢化: 送信のみのbotで特権操作は不要。権限昇格を禁止し capability を全剥奪する。
+    # (distroless:nonroot で非rootだが、多層防御として明示する)
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # 常駐でログが無制限に肥大しないようローテーションする。
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    # 暴走時に母艦を保護するリソース上限(辞書ロード込みで通常100〜250MB程度)。
+    # 小型機(Raspberry Pi等)での常駐も想定し、余裕を見て512MiBとする。
+    mem_limit: 512m
+    pids_limit: 256
+
+volumes:
+  growbot-data:
