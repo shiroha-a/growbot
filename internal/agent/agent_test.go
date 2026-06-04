@@ -47,6 +47,30 @@ func TestJapaneseRatio(t *testing.T) {
 	}
 }
 
+// TestSanitizeText verifies mentions, URLs and custom-emoji shortcodes are
+// stripped while plain Japanese (and non-mention "@") is preserved.
+func TestSanitizeText(t *testing.T) {
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{"mention at start", "@bob hello", "hello"},
+		{"mention mid sentence", "ねえ@bob@example.com元気?", "ねえ元気?"},
+		{"url without surrounding spaces", "見てhttps://example.com/path面白い", "見て面白い"},
+		{"url with spaces", "リンク https://x.com です", "リンク です"},
+		{"custom emoji", "かわいい:blobcat:ね", "かわいいね"},
+		{"all markup together", "@a https://x.com :foo: 本文", "本文"},
+		{"email is not a mention", "a@b.com", "a@b.com"},
+		{"plain Japanese unchanged", "今日はいい天気", "今日はいい天気"},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, sanitizeText(tt.in))
+		})
+	}
+}
+
 // selfWith builds a Self whose four drives are all set to urge (so Urge() == urge)
 // and with the given energy.
 func selfWith(urge, energy float64) *psyche.Self {
