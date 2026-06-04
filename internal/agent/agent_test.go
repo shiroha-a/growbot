@@ -57,10 +57,16 @@ func TestSanitizeText(t *testing.T) {
 	}{
 		{"mention at start", "@bob hello", "hello"},
 		{"mention mid sentence", "ねえ@bob@example.com元気?", "ねえ元気?"},
+		{"underscore-prefixed mention (MFM notifies)", "_@bob", "_"},
+		{"underscore-prefixed mention with host", "_@bob@host", "_"},
 		{"url without surrounding spaces", "見てhttps://example.com/path面白い", "見て面白い"},
 		{"url with spaces", "リンク https://x.com です", "リンク です"},
+		{"uppercase scheme URL", "HTTPS://evil.example/x", ""},
+		{"ipv6 literal URL", "今http://[::1]:8080/xだ", "今だ"},
+		{"idn host: scheme stripped (no linkify)", "見てhttps://例え.jp/パス", "見て例え.jp/パス"},
 		{"custom emoji", "かわいい:blobcat:ね", "かわいいね"},
 		{"all markup together", "@a https://x.com :foo: 本文", "本文"},
+		{"all markup leaves nothing", "@bob https://x.com :foo:", ""},
 		{"email is not a mention", "a@b.com", "a@b.com"},
 		{"plain Japanese unchanged", "今日はいい天気", "今日はいい天気"},
 	}

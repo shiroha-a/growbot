@@ -326,10 +326,13 @@ func isJapanese(r rune) bool {
 }
 
 var (
-	// URLはASCIIのURL文字のみにマッチさせ、後続の日本語本文を巻き込まない。
-	urlRe = regexp.MustCompile(`https?://[A-Za-z0-9._~:/?#@!$&'()*+,;=%-]+`)
+	// URLはMisskey(MFM)に合わせ大小無視(?i)。文字クラスはASCIIのURL文字に角括弧
+	// (IPv6リテラル)を加え、末尾は * とすることでホストが非ASCII(IDN)でも少なくとも
+	// スキームを確実に除去する。後続の日本語本文は非ASCIIで止まるため巻き込まない。
+	urlRe = regexp.MustCompile(`(?i)https?://[A-Za-z0-9._~:/?#@!$&'()*+,;=%\[\]-]*`)
 	// メンションは境界文字(行頭/非単語文字)を1文字保持して @user / @user@host を除去。
-	mentionRe = regexp.MustCompile(`(^|[^0-9A-Za-z_])@[A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?`)
+	// 境界からアンダースコアを外し、MFMの直前判定 /[a-z0-9]$/i に一致させる(_@bob を除去)。
+	mentionRe = regexp.MustCompile(`(^|[^0-9A-Za-z])@[A-Za-z0-9_]+(?:@[A-Za-z0-9_.-]+)?`)
 	// Misskeyのカスタム絵文字ショートコード :name: を除去。
 	emojiRe = regexp.MustCompile(`:[A-Za-z0-9_+-]+:`)
 	// 除去後に残る連続空白を1つに畳む。
@@ -530,6 +533,9 @@ func (a *Agent) handleMention(ctx context.Context, note misskey.StreamNote) {
 	surface := voice.Decorate(reply, mood, a.rng)
 	// 既学習分の防御: 投稿直前にメンション/URL/絵文字ショートコードを除去する。
 	surface = sanitizeText(surface)
+	if strings.TrimSpace(surface) == "" {
+		return
+	}
 
 	id, err := a.client.CreateReply(ctx, surface, note.ID)
 	if err != nil {
@@ -572,6 +578,9 @@ func (a *Agent) learn(ctx context.Context, note misskey.StreamNote) {
 	// メンション/URL/絵文字ショートコード等のマークアップは学習しない。語彙汚染と、
 	// 生成投稿経由でのリモートユーザーへの不要な通知・リンク露出を根本から防ぐ。
 	text = sanitizeText(text)
+	if strings.TrimSpace(text) == "" {
+		return
+	}
 	// NGワード/記号過多のノートは語彙汚染を避けるため学習対象から除外する。
 	if !a.guard.Allowed(text) {
 		return
@@ -719,6 +728,12 @@ func (a *Agent) act(ctx context.Context, now time.Time) {
 	surface = voice.Decorate(surface, a.self.Mood, a.rng)
 	// 既学習分の防御: 投稿直前にメンション/URL/絵文字ショートコードを除去する。
 	surface = sanitizeText(surface)
+	if strings.TrimSpace(surface) == "" {
+		// サニタイズで本文が消えた場合は空投稿を避け、クールダウンだけ置く。
+		a.lastPost = now
+		a.logger.Debug("nothing to post after sanitize")
+		return
+	}
 
 	id, err := a.client.CreateNote(ctx, surface)
 	if err != nil {
@@ -987,6 +1002,9 @@ func (a *Agent) maybeDream(ctx context.Context, now time.Time) {
 	surface := voice.Decorate(text, a.self.Mood, a.rng)
 	// 既学習分の防御: 投稿直前にメンション/URL/絵文字ショートコードを除去する。
 	surface = sanitizeText(surface)
+	if strings.TrimSpace(surface) == "" {
+		return
+	}
 	id, err := a.client.CreateNote(ctx, surface)
 	if err != nil {
 		a.logger.Warn("dream post failed", "err", err)
