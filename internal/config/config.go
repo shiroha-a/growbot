@@ -74,6 +74,10 @@ type Config struct {
 
 	// MentionReply toggles replying to mentions and replies.
 	MentionReply bool `env:"MENTION_REPLY" envDefault:"true"`
+	// MentionReplyAlways makes the bot reply to mentions regardless of its sleep
+	// state or energy level. The reply cooldown, NG-word/symbol filter, and the
+	// hourly post rate limit still apply, and autonomous posting is unaffected.
+	MentionReplyAlways bool `env:"MENTION_REPLY_ALWAYS" envDefault:"false"`
 	// AffinityGain is how much affinity rises per interaction with an actor, in
 	// [0,1]. A value of 0 disables affinity growth.
 	AffinityGain float64 `env:"AFFINITY_GAIN" envDefault:"0.1"`

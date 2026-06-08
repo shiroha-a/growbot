@@ -498,7 +498,8 @@ func (a *Agent) handleMention(ctx context.Context, note misskey.StreamNote) {
 		return
 	}
 	// 睡眠中・低エネルギー・直前に返信したばかりなら、休息/レート制限として返信を控える。
-	if !shouldReply(a.clock.Asleep(time.Now()), a.self.Energy, time.Since(a.lastReply)) {
+	// ただしMENTION_REPLY_ALWAYS時は睡眠・エネルギーを無視し、話しかけられたら必ず応える。
+	if !shouldReply(a.clock.Asleep(time.Now()), a.self.Energy, time.Since(a.lastReply), a.cfg.MentionReplyAlways) {
 		a.logger.Debug("mention noted (resting/throttled)", "actor", note.Username)
 		return
 	}
@@ -552,11 +553,20 @@ func (a *Agent) handleMention(ctx context.Context, note misskey.StreamNote) {
 	a.logger.Info("replied", "id", id, "to", note.Username, "affinity", rel.Affinity, "text", surface)
 }
 
-// shouldReply reports whether the bot should reply to a mention now: it must be
-// awake, rested enough, and past the reply cooldown. (The relationship is still
-// recorded when this returns false.)
-func shouldReply(asleep bool, energy float64, sinceLastReply time.Duration) bool {
-	return !asleep && energy >= minEnergyToAct && sinceLastReply >= mentionMinInterval
+// shouldReply reports whether the bot should reply to a mention now. The reply
+// cooldown always applies as a safety throttle. Normally the bot must also be
+// awake and rested; when always is true (MENTION_REPLY_ALWAYS) the sleep and
+// energy gates are bypassed so it answers whenever it is addressed. (The
+// relationship is still recorded when this returns false.)
+func shouldReply(asleep bool, energy float64, sinceLastReply time.Duration, always bool) bool {
+	// 連投クールダウンはrapid-fire/bot間ループ緩和の安全弁なので常に守る。
+	if sinceLastReply < mentionMinInterval {
+		return false
+	}
+	if always {
+		return true
+	}
+	return !asleep && energy >= minEnergyToAct
 }
 
 // learnWorker drains the learn queue until ctx is canceled.
