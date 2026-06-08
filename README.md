@@ -139,6 +139,7 @@ journalctl -u growbot -f                # ログ確認
 | `MEMORY_DECAY` / `MEMORY_PRUNE_BELOW` | `0.9` / `0.05` | 忘却・剪定 |
 | `DREAM_CHANCE` | `0.3` | 起床時に夢を投稿する確率 |
 | `MENTION_REPLY` / `AFFINITY_GAIN` | `true` / `0.1` | メンション応答・親密度 |
+| `MENTION_REPLY_ALWAYS` | `false` | `true`で睡眠中・低エネルギーでもメンションに返信(クールダウン・NG・レート上限は維持) |
 | `ENGAGEMENT_POLL_INTERVAL` / `REACTION_DELAY` | `5m` / `30m` | 反応回収 |
 | `NG_WORDS` / `MAX_SYMBOL_RATIO` / `MAX_POSTS_PER_HOUR` | (空) / `0.5` / `12` | 安全・レート制限 |
 

@@ -122,13 +122,20 @@ func TestDecideAct(t *testing.T) {
 
 func TestShouldReply(t *testing.T) {
 	// 起きていて、十分なエネルギーがあり、クールダウンを過ぎていれば返信する。
-	require.True(t, shouldReply(false, 1.0, time.Hour))
+	require.True(t, shouldReply(false, 1.0, time.Hour, false))
 	// 睡眠中は返信しない。
-	require.False(t, shouldReply(true, 1.0, time.Hour))
+	require.False(t, shouldReply(true, 1.0, time.Hour, false))
 	// 低エネルギーでは返信しない。
-	require.False(t, shouldReply(false, minEnergyToAct-0.01, time.Hour))
+	require.False(t, shouldReply(false, minEnergyToAct-0.01, time.Hour, false))
 	// 直前に返信したばかりなら控える。
-	require.False(t, shouldReply(false, 1.0, mentionMinInterval-time.Second))
+	require.False(t, shouldReply(false, 1.0, mentionMinInterval-time.Second, false))
+}
+
+func TestShouldReplyAlways(t *testing.T) {
+	// MENTION_REPLY_ALWAYS時は睡眠中かつエネルギー0でも返信する。
+	require.True(t, shouldReply(true, 0.0, time.Hour, true))
+	// always時でも連投クールダウンは安全弁として効く。
+	require.False(t, shouldReply(false, 1.0, mentionMinInterval-time.Second, true))
 }
 
 func TestAlreadySeen(t *testing.T) {
