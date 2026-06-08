@@ -218,3 +218,96 @@ func TestRandomFrequentToken(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, ok)
 }
+
+// TestSeedContext verifies that SeedContext finds a prev_key whose last context
+// surface is the seed (order 2: the whole key; order 3: the suffix after sep),
+// rejects a seed that only appears mid-context, reports false for unknown/empty
+// seeds, matches ASCII case-sensitively, and treats wildcard-like characters
+// literally.
+func TestSeedContext(t *testing.T) {
+	t.Run("order 2 whole prev_key is the seed", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "猫", Next: "歩く"}}))
+		got, ok, err := repo.SeedContext(ctx, "猫")
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, "猫", got)
+	})
+
+	t.Run("order 3 returns a context ending in the seed", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		key := "は" + sep + "猫"
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: key, Next: "が"}}))
+		got, ok, err := repo.SeedContext(ctx, "猫")
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, key, got)
+	})
+
+	t.Run("does not match a seed that is not the last surface", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		// "猫" は文脈の先頭で末尾ではない。末尾一致なのでマッチしない。
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "猫" + sep + "が", Next: "歩く"}}))
+		_, ok, err := repo.SeedContext(ctx, "猫")
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("unknown seed reports false", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "猫", Next: "歩く"}}))
+		_, ok, err := repo.SeedContext(ctx, "存在しない")
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("empty seed reports false", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "猫", Next: "歩く"}}))
+		_, ok, err := repo.SeedContext(ctx, "")
+		require.NoError(t, err)
+		require.False(t, ok)
+	})
+
+	t.Run("ASCII seed matching is case-sensitive", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		// 末尾が小文字 "ai" の文脈のみ学習。SQLite の LIKE は ASCII のケースを畳むため、
+		// 素朴な LIKE 実装だと大文字 "AI" が誤マッチする。substr 比較では一致しないこと。
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "x" + sep + "ai", Next: "y"}}))
+		_, ok, err := repo.SeedContext(ctx, "AI")
+		require.NoError(t, err)
+		require.False(t, ok, "uppercase seed must not match a lowercase context")
+
+		// 同じケースなら一致する。
+		key := "x" + sep + "AI"
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: key, Next: "y"}}))
+		got, ok, err := repo.SeedContext(ctx, "AI")
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, key, got)
+	})
+
+	t.Run("wildcard-like characters in the seed are matched literally", func(t *testing.T) {
+		repo, ctx := openRepo(t)
+		// 末尾一致は substr の厳密比較で行うため、% や _ も通常の文字として扱う。
+		// "_" を含む別語のみ学習。_ がワイルドカードなら "a_b" が "aXb" に誤マッチする。
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "x" + sep + "aXb", Next: "y"}}))
+		_, ok, err := repo.SeedContext(ctx, "a_b")
+		require.NoError(t, err)
+		require.False(t, ok, "underscore must be a literal, not a wildcard")
+
+		// "%" を含む別語のみ学習。% がワイルドカードなら任意文字列に誤マッチしうる。
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: "x" + sep + "abcZZZ", Next: "y"}}))
+		_, ok, err = repo.SeedContext(ctx, "abc%")
+		require.NoError(t, err)
+		require.False(t, ok, "percent must be a literal, not a wildcard")
+
+		// ワイルドカード様の文字を含む seed はリテラルとして一致する。
+		key := "x" + sep + "abc%"
+		require.NoError(t, repo.ApplyLearn(ctx, nil, []ChainBump{{PrevKey: key, Next: "y"}}))
+		got, ok, err := repo.SeedContext(ctx, "abc%")
+		require.NoError(t, err)
+		require.True(t, ok)
+		require.Equal(t, key, got)
+	})
+}

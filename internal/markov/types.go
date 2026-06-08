@@ -52,6 +52,11 @@ type Repo interface {
 	// RandomContext returns a random known prev_key, used to seed dream-like
 	// generation. The boolean is false when no chains exist yet.
 	RandomContext(ctx context.Context) (string, bool, error)
+	// SeedContext returns a random known prev_key whose last context surface is
+	// seed, so seeded generation can continue from a real learned context rather
+	// than a BOS-padded one that rarely matches at order >= 3. The boolean is
+	// false when no such context exists.
+	SeedContext(ctx context.Context, seed string) (string, bool, error)
 	// CreditChains adds an engagement reward to each given transition (its
 	// reward_sum and reward_n), so generation can later favor phrasings that
 	// were well received.

@@ -84,6 +84,26 @@ func (f *fakeRepo) RandomContext(_ context.Context) (string, bool, error) {
 	return keys[0], true, nil
 }
 
+// SeedContext returns a deterministic prev_key (the smallest) whose last context
+// surface is seed, for test reproducibility; the real SQLRepo uses RANDOM().
+func (f *fakeRepo) SeedContext(_ context.Context, seed string) (string, bool, error) {
+	if seed == "" {
+		return "", false, nil
+	}
+	var keys []string
+	for k := range f.chains {
+		parts := strings.Split(k, sep)
+		if parts[len(parts)-1] == seed {
+			keys = append(keys, k)
+		}
+	}
+	if len(keys) == 0 {
+		return "", false, nil
+	}
+	sort.Strings(keys)
+	return keys[0], true, nil
+}
+
 func (f *fakeRepo) Stats(_ context.Context) (Stats, error) {
 	return Stats{Vocab: len(f.vocab), Chains: len(f.chains)}, nil
 }
@@ -294,6 +314,18 @@ func TestGenerateFromSeed(t *testing.T) {
 	out3, err := m.GenerateFromSeed(ctx, "")
 	require.NoError(t, err)
 	require.NotEmpty(t, out3)
+
+	// order>=3 でも、seed が文頭でない実在文脈から続きを生成できる(ステアリング)。
+	// "猫" は文頭ではないため [BOS,BOS,猫] では引けないが、実在文脈 [は,猫] から続く。
+	repo3 := newFakeRepo()
+	m3 := NewModel(repo3, Options{Order: 3, MinTokens: 1, MaxTokens: 20}, rand.New(rand.NewSource(3)))
+	require.NoError(t, m3.Learn(ctx, tokens("今日", "は", "猫", "が", "鳴く")))
+
+	out4, err := m3.GenerateFromSeed(ctx, "猫")
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(out4, "猫"))
+	require.Greater(t, len([]rune(out4)), len([]rune("猫")), "order 3 seed should continue past the seed")
+	require.False(t, strings.ContainsAny(out4, BOS+EOS+sep))
 }
 
 // TestSampleWeightsByReward verifies that a higher-reward transition is chosen

@@ -198,6 +198,40 @@ func (r *SQLRepo) RandomContext(ctx context.Context) (string, bool, error) {
 	return prevKey, true, nil
 }
 
+// SeedContext returns a random known prev_key whose last context surface is seed.
+// For order 2 the whole prev_key is the seed; for higher orders the prev_key ends
+// with sep+seed. This lets seeded generation continue from a real learned context
+// instead of the BOS-padded [BOS..., seed], which rarely matches at order >= 3.
+// The boolean is false when no such context exists.
+//
+// 末尾一致は LIKE ではなく substr で厳密比較する。SQLite の LIKE は ASCII を
+// 大文字小文字無視で畳むため、英字seed(例: AI)が異なるケースの文脈(例: ai)へ
+// 誤マッチしてしまう(order2 の完全一致 = や fakeRepo は区別するため挙動が割れる)。
+// substr ならケースを区別でき、% や _ もリテラル扱いとなりエスケープも不要になる。
+func (r *SQLRepo) SeedContext(ctx context.Context, seed string) (string, bool, error) {
+	if r == nil || r.db == nil {
+		return "", false, fmt.Errorf("markov: nil repo")
+	}
+	if seed == "" {
+		return "", false, nil
+	}
+	// order>=3 では prev_key の末尾が sep+seed。substr(prev_key, -length(anchor)) で
+	// 末尾を切り出して厳密一致を見る。order2 は sep を持たないので = 側で拾う。
+	anchor := sep + seed
+	var prevKey string
+	err := r.db.QueryRowContext(ctx,
+		`SELECT prev_key FROM chains
+		 WHERE prev_key = ? OR substr(prev_key, -length(?)) = ?
+		 ORDER BY RANDOM() LIMIT 1;`, seed, anchor, anchor).Scan(&prevKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("markov: seed context: %w", err)
+	}
+	return prevKey, true, nil
+}
+
 // CreditChains adds reward to each transition's reward_sum/reward_n, so phrasings
 // from well-received posts gain sampling weight. It runs in one transaction.
 func (r *SQLRepo) CreditChains(ctx context.Context, chains []ChainBump, reward float64) error {
