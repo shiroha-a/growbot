@@ -246,9 +246,20 @@ func (m *Model) dreamWindow(ctx context.Context) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	window := m.startWindow()
 	if !ok {
-		return window, nil
+		return m.startWindow(), nil
+	}
+	return m.windowFromContext(prevKey), nil
+}
+
+// windowFromContext builds an initial generation window from a stored prev_key.
+// The prev_key holds order-1 context surfaces joined by sep; it is right-aligned
+// into a BOS-filled window, safely truncating if it is unexpectedly long. The
+// returned window is always order-1 long and safe to mutate.
+func (m *Model) windowFromContext(prevKey string) []string {
+	window := m.startWindow()
+	if prevKey == "" {
+		return window
 	}
 	// prev_key は order-1 個の表層をsepで連結したもの。末尾合わせで埋め、
 	// 想定外の長さでも境界を越えないよう安全に補正する。
@@ -257,30 +268,48 @@ func (m *Model) dreamWindow(ctx context.Context) ([]string, error) {
 		parts = parts[n-len(window):]
 	}
 	copy(window[len(window)-len(parts):], parts)
-	return window, nil
+	return window
 }
 
-// GenerateFromSeed generates a sentence that begins with the given seed surface
-// and continues from what the model has learned to follow it, so a reply can be
-// steered toward a keyword from an incoming message. When the seed has no known
-// continuation the seed is returned on its own; an empty seed falls back to
-// Generate.
+// GenerateFromSeed generates a reply steered toward seed: a sentence beginning
+// with the seed surface and continuing from what the model has learned to follow
+// it, so a reply can track a keyword from an incoming message.
 //
-// Steering is effective at order 2 (the default), where the seed is the full
-// context. At higher orders the seed is BOS-padded and rarely matches a learned
-// mid-sentence context, so it usually degrades to returning the seed alone.
+// It first tries the sentence-start context [BOS..., seed]. When that has no
+// known continuation (common at order >= 3, where seed rarely begins a learned
+// sentence) it falls back to a real learned context ending in seed, so steering
+// stays effective at higher orders. When neither yields a continuation the seed
+// is returned on its own; an empty seed falls back to Generate.
 func (m *Model) GenerateFromSeed(ctx context.Context, seed string) (string, error) {
 	if seed == "" {
 		return m.Generate(ctx)
 	}
-	// ウィンドウ末尾を seed にして、その直後から続きを生成する。
+	// まず文頭文脈[BOS..., seed]で続きを試みる(order2では seed が全文脈)。
 	window := m.startWindow()
 	window[len(window)-1] = seed
 	cont, err := m.generate(ctx, window)
 	if err != nil {
 		return "", err
 	}
-	return seed + cont, nil
+	if cont != "" {
+		return seed + cont, nil
+	}
+	// 空振り(order>=3で頻発)なら、seedを末尾に持つ実在文脈から続きを生成する。
+	prevKey, ok, err := m.repo.SeedContext(ctx, seed)
+	if err != nil {
+		return "", err
+	}
+	if ok {
+		cont, err = m.generate(ctx, m.windowFromContext(prevKey))
+		if err != nil {
+			return "", err
+		}
+		if cont != "" {
+			return seed + cont, nil
+		}
+	}
+	// それでも続きが無ければ seed 単体(呼び出し側がフォールバック判断する)。
+	return seed, nil
 }
 
 // Stats reports the learned model size by delegating to the Repo.
